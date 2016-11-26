@@ -347,7 +347,7 @@ static int cpio_mkfile(const char *name, const char *location,
 			(long) uid,		/* uid */
 			(long) gid,		/* gid */
 			nlinks,			/* nlink */
-			(long) buf.st_mtime,	/* mtime */
+			(long) default_mtime,	/* mtime */
 			size,			/* filesize */
 			3,			/* major */
 			1,			/* minor */
