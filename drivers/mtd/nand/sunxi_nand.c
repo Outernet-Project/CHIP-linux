@@ -376,8 +376,9 @@ static int sunxi_nfc_dma_op_prepare(struct mtd_info *mtd, const void *buf,
 
 	dmad = dmaengine_prep_slave_sg(nfc->dmac, sgt->sgl, sgt->nents,
 				       tdir, DMA_CTRL_ACK);
-	if (IS_ERR(dmad)) {
-		ret = PTR_ERR(dmad);
+	if (!dmad) {
+		ret = -EINVAL;
+		dev_err(nfc->dev, "unable to prepare slave sg");
 		goto err_unmap_buf;
 	}
 
@@ -1084,7 +1085,8 @@ static int sunxi_nfc_hw_ecc_read_chunks_dma(struct mtd_info *mtd, uint8_t *buf,
 
 		if (oob_required && !erased) {
 			/* TODO: use DMA to retrieve OOB */
-			nand->cmdfunc(mtd, NAND_CMD_RNDOUT, oob_off, -1);
+			nand->cmdfunc(mtd, NAND_CMD_RNDOUT,
+				      mtd->writesize + oob_off, -1);
 			nand->read_buf(mtd, oob, ecc->bytes + 4);
 
 			sunxi_nfc_hw_ecc_get_prot_oob_bytes(mtd, oob, i,
@@ -1119,7 +1121,8 @@ static int sunxi_nfc_hw_ecc_read_chunks_dma(struct mtd_info *mtd, uint8_t *buf,
 			}
 
 			/* TODO: use DMA to retrieve OOB */
-			nand->cmdfunc(mtd, NAND_CMD_RNDOUT, oob_off, -1);
+			nand->cmdfunc(mtd, NAND_CMD_RNDOUT,
+				      mtd->writesize + oob_off, -1);
 			nand->read_buf(mtd, oob, ecc->bytes + 4);
 
 			ret = nand_check_erased_ecc_chunk(data,	ecc->size,
@@ -1824,6 +1827,7 @@ static int sunxi_nand_hw_ecc_ctrl_init(struct mtd_info *mtd,
 		ecc->read_page = sunxi_nfc_hw_ecc_read_page_dma;
 		ecc->read_subpage = sunxi_nfc_hw_ecc_read_subpage_dma;
 		ecc->write_page = sunxi_nfc_hw_ecc_write_page_dma;
+		nand->options |= NAND_USE_BOUNCE_BUFFER;
 	} else {
 		ecc->read_page = sunxi_nfc_hw_ecc_read_page;
 		ecc->read_subpage = sunxi_nfc_hw_ecc_read_subpage;
@@ -2083,8 +2087,6 @@ static int sunxi_nand_chip_init(struct device *dev, struct sunxi_nfc *nfc,
 		nand->options |= NAND_NO_SUBPAGE_WRITE;
 	}
 	nand->bbt_options |= NAND_BBT_SCANRAWMODE;
-
-	nand->options |= NAND_SUBPAGE_READ;
 
 	ret = sunxi_nand_chip_init_timings(chip, np);
 	if (ret) {
